@@ -864,10 +864,13 @@ with tab4:
     else:
         # Create filters
         st.subheader("篩選選項")
-        col1, col2, col3, col4 = st.columns([4,8,1.5,2])
         
         # Get unique values for filters
         book_titles = sorted(set(record['book_title'] for record in records if record['book_title']))
+        
+        # Reset filter values if they don't exist in available options
+        if st.session_state.filter_book_title != "所有" and st.session_state.filter_book_title not in book_titles:
+            st.session_state.filter_book_title = "所有"
         
         # Get available articles based on selected book
         if st.session_state.filter_book_title and st.session_state.filter_book_title != "所有":
@@ -877,6 +880,10 @@ with tab4:
             ))
         else:
             available_articles = sorted(set(record['article_title'] for record in records if record['article_title']))
+        
+        # Reset article filter if it doesn't exist in available options
+        if st.session_state.filter_article_title != "所有" and st.session_state.filter_article_title not in available_articles:
+            st.session_state.filter_article_title = "所有"
         
         # Get available pages based on selected book and article
         if (st.session_state.filter_book_title and st.session_state.filter_book_title != "所有" and
@@ -889,6 +896,10 @@ with tab4:
             ))
         else:
             available_pages = sorted(set(record['page_number'] for record in records if record['page_number']))
+        
+        # Reset page filter if it doesn't exist in available options
+        if st.session_state.filter_page_number != "所有" and st.session_state.filter_page_number not in available_pages:
+            st.session_state.filter_page_number = "所有"
         
         # Get available models based on selected book, article and page
         if (st.session_state.filter_book_title and st.session_state.filter_book_title != "所有" and
@@ -903,6 +914,13 @@ with tab4:
             ))
         else:
             available_models = sorted(set(record['model_used'] for record in records if record['model_used']))
+        
+        # Reset model filter if it doesn't exist in available options
+        if st.session_state.filter_model_used != "所有" and st.session_state.filter_model_used not in available_models:
+            st.session_state.filter_model_used = "所有"
+        
+        # Create filter UI
+        col1, col2, col3, col4 = st.columns([4,8,1.5,2])
         
         with col1:
             # Book filter
