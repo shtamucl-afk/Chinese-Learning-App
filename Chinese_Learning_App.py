@@ -8,6 +8,10 @@ import azure.cognitiveservices.speech as speechsdk
 from openai import OpenAI
 import pandas as pd
 from datetime import datetime
+import gspread
+from google.oauth2.service_account import Credentials
+from datetime import datetime, timezone, timedelta
+import pytz
 
 # Load environment variables
 load_dotenv()
@@ -102,6 +106,13 @@ with col2:
         horizontal=True
     )
     st.session_state.selected_model = model_option
+
+# Function to get current time in Hong Kong timezone
+def get_hong_kong_time():
+    # Create a timezone object for Hong Kong
+    hong_kong_tz = pytz.timezone('Asia/Hong_Kong')
+    # Get current time in Hong Kong
+    return datetime.now(hong_kong_tz)
 
 # API call helper functions
 def call_gemini(prompt):
@@ -236,20 +247,34 @@ def speak_text_azure(text, voice_id=None):
         st.error(f"Azure语音服务错误: {e}")
         return None
 
+# Initialize Google Sheets connection
+def init_google_sheets():
+    scope = ["https://spreadsheets.google.com/feeds", 
+             "https://www.googleapis.com/auth/drive"]
+    
+    # You'll need to upload your credentials JSON to Streamlit secrets
+    creds_dict = st.secrets["google_credentials"]
+    creds = Credentials.from_service_account_info(creds_dict, scopes=scope)
+    client = gspread.authorize(creds)
+    
+    # Open your Google Sheet
+    sheet = client.open("Chinese Learning Records").sheet1
+    return sheet
+
+
 # New functions for export and revision features
-def load_csv_data():
-    """Load data from the CSV file"""
-    if os.path.exists(st.session_state.csv_filename):
-        try:
-            df = pd.read_csv(st.session_state.csv_filename, encoding='utf-8-sig')
-            return df.to_dict('records')
-        except:
-            return []
-    return []
+def load_gs_data():
+    try:
+        sheet = init_google_sheets()
+        records = sheet.get_all_records()
+        return records
+    except Exception as e:
+        st.error(f"Error loading data from Google Sheets: {e}")
+        return []
 
 def check_record_exists(book_title, article_title, model_used):
     """Check if a record with the same book, article and model already exists"""
-    records = load_csv_data()
+    records = load_gs_data()
     for record in records:
         # Normalize strings for comparison (strip whitespace, case-insensitive)
         if (record["book_title"].strip().lower() == book_title.strip().lower() and 
@@ -258,49 +283,47 @@ def check_record_exists(book_title, article_title, model_used):
             return True
     return False
 
-def save_to_csv(text_data, keywords, dictionary_data, model_used, book_title="", article_title="", page_number=""):
-    """Save text data to the main CSV file"""
-    # Normalize the input data
-    book_title = book_title.strip()
-    article_title = article_title.strip()
-    page_number = page_number.strip()
-    model_used = model_used.strip()
-    
-    # Create a dictionary with all the data
-    new_record = {
-        "export_date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        "book_title": book_title,
-        "article_title": article_title,
-        "page_number": page_number,
-        "original_text": text_data,
-        "keywords": keywords,
-        "dictionary_data": dictionary_data,
-        "model_used": model_used
-    }
-    
-    # Load existing data
-    existing_data = load_csv_data()
-    
-    # Check if we need to update an existing record
-    record_exists = False
-    for i, record in enumerate(existing_data):
-        # Normalize comparison
-        if (record["book_title"].strip().lower() == book_title.lower() and 
-            record["article_title"].strip().lower() == article_title.lower() and 
-            record["model_used"].strip().lower() == model_used.lower()):
-            existing_data[i] = new_record
-            record_exists = True
-            break
-    
-    # If it's a new record, append it
-    if not record_exists:
-        existing_data.append(new_record)
-    
-    # Save to CSV with UTF-8 encoding
-    df = pd.DataFrame(existing_data)
-    df.to_csv(st.session_state.csv_filename, index=False, encoding='utf-8-sig')
-    
-    return len(existing_data)
+def save_to_gs(text_data, keywords, dictionary_data, model_used, book_title="", article_title="", page_number=""):
+    try:
+        sheet = init_google_sheets()
+        records = load_gs_data()
+        
+        # Create new record
+        new_record = {
+            "export_date": get_hong_kong_time().strftime("%Y-%m-%d %H:%M:%S"),
+            "book_title": book_title.strip(),
+            "article_title": article_title.strip(),
+            "page_number": page_number.strip(),
+            "original_text": text_data,
+            "keywords": keywords,
+            "dictionary_data": dictionary_data,
+            "model_used": model_used.strip()
+        }
+        
+        # Check if record exists
+        record_index = None
+        for i, record in enumerate(records):
+            if (record["book_title"].strip().lower() == book_title.strip().lower() and 
+                record["article_title"].strip().lower() == article_title.strip().lower() and 
+                record["model_used"].strip().lower() == model_used.strip().lower()):
+                record_index = i + 2  # +2 because of header row and 0-indexing
+                break
+        
+        # Convert record to list for Google Sheets
+        record_values = list(new_record.values())
+        
+        if record_index:
+            # Update existing record
+            sheet.update(f"A{record_index}:H{record_index}", [record_values])
+        else:
+            # Append new record
+            sheet.append_row(record_values)
+            
+        return len(records) + (0 if record_index else 1)
+        
+    except Exception as e:
+        st.error(f"Error saving to Google Sheets: {e}")
+        return 0
 
 def parse_dictionary_table(dictionary_text):
     """Parse the dictionary table from the AI response"""
@@ -323,27 +346,6 @@ def parse_dictionary_table(dictionary_text):
                 })
     
     return table_data
-
-def initialize_csv():
-    """Initialize the CSV file with proper headers and encoding"""
-    if not os.path.exists(st.session_state.csv_filename):
-        # Create an empty DataFrame with the correct columns
-        df = pd.DataFrame(columns=[
-            "export_date", 
-            "book_title", 
-            "article_title", 
-            "page_number", 
-            "original_text", 
-            "keywords", 
-            "dictionary_data", 
-            "model_used"
-        ])
-        
-        # Save to CSV with UTF-8 encoding and BOM
-        df.to_csv(st.session_state.csv_filename, index=False, encoding='utf-8-sig')
-
-# Initialize the CSV file
-initialize_csv()
 
 # Create tabs
 tab1, tab2, tab3, tab4, tab5 = st.tabs(["錯字檢查", "課文學習", "語音朗讀", "複習", "工具"])
@@ -583,91 +585,26 @@ with tab2:
             with col3:
                 page_number = st.text_input("頁碼", key="page_number")
             
-            # Export button and duplicate handling logic
+            # Check if record already exists
+            record_exists = False
+            if book_title and article_title:
+                record_exists = check_record_exists(book_title, article_title, st.session_state.model_used)
             
+            # Export button and duplicate handling logic
             if st.button("匯出到數據庫(CSV)", key="export_csv"):
                 if not book_title or not article_title:
                     st.error("請填寫書名和文章標題。")
                 else:
-                    # Check if record already exists
-                    if check_record_exists(book_title, article_title, st.session_state.model_used):
+                    if record_exists:
                         st.warning("已存在相同書名、文章標題和AI模型的記錄。")
-                        
-                        # Create a confirmation dialog
-                        col1, col2, col3 = st.columns(3)
-                        with col1:
-                            if st.button("覆蓋現有記錄", key="overwrite_confirm"):
-                                # Remove the old record and add the new one
-                                existing_data = load_csv_data()
-                                updated_data = [
-                                    record for record in existing_data 
-                                    if not (record["book_title"].strip().lower() == book_title.strip().lower() and 
-                                            record["article_title"].strip().lower() == article_title.strip().lower() and 
-                                            record["model_used"].strip().lower() == st.session_state.model_used.strip().lower())
-                                ]
-                                
-                                # Add the new record (convert to Traditional Chinese)
-                                cc_s2t = OpenCC('s2t')  # Simplified to Traditional converter
-                                trad_original = cc_s2t.convert(st.session_state.text_input_tab2)
-                                trad_keywords = cc_s2t.convert(st.session_state.words_input_tab2)
-                                
-                                updated_data.append({
-                                    "export_date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                                    "book_title": book_title.strip(),
-                                    "article_title": article_title.strip(),
-                                    "page_number": page_number.strip(),
-                                    "original_text": trad_original,
-                                    "keywords": trad_keywords,
-                                    "dictionary_data": st.session_state.dictionary_data,
-                                    "model_used": st.session_state.model_used
-                                })
-                                
-                                # Save updated data
-                                df = pd.DataFrame(updated_data)
-                                df.to_csv(st.session_state.csv_filename, index=False, encoding='utf-8-sig')
-                                st.success(f"記錄已更新！數據庫中現在有 {len(updated_data)} 條記錄。")
-                                st.rerun()
-                        
-                        with col2:
-                            if st.button("使用不同名稱保存", key="save_different"):
-                                # This will trigger the new name inputs below
-                                st.session_state.show_new_name_inputs = True
-                        
-                        with col3:
-                            if st.button("取消操作", key="cancel_export"):
-                                st.session_state.show_new_name_inputs = False
-                                st.rerun()
-                        
-                        # Show new name inputs if requested
-                        if st.session_state.get('show_new_name_inputs', False):
-                            new_book_title = st.text_input("新書名", value=book_title, key="new_book_title")
-                            new_article_title = st.text_input("新文章標題", value=article_title, key="new_article_title")
-                            
-                            if st.button("確認保存", key="save_with_new_name"):
-                                # Convert to Traditional Chinese before saving
-                                cc_s2t = OpenCC('s2t')  # Simplified to Traditional converter
-                                trad_original = cc_s2t.convert(st.session_state.text_input_tab2)
-                                trad_keywords = cc_s2t.convert(st.session_state.words_input_tab2)
-                                
-                                record_count = save_to_csv(
-                                    trad_original,
-                                    trad_keywords,
-                                    st.session_state.dictionary_data,
-                                    st.session_state.model_used,
-                                    new_book_title,
-                                    new_article_title,
-                                    page_number
-                                )
-                                st.success(f"資料已成功匯出！數據庫中現在有 {record_count} 條記錄。")
-                                st.session_state.show_new_name_inputs = False
-                                st.rerun()
+                        st.session_state.show_overwrite_options = True
                     else:
                         # Convert to Traditional Chinese before saving
                         cc_s2t = OpenCC('s2t')  # Simplified to Traditional converter
                         trad_original = cc_s2t.convert(st.session_state.text_input_tab2)
                         trad_keywords = cc_s2t.convert(st.session_state.words_input_tab2)
                         
-                        record_count = save_to_csv(
+                        record_count = save_to_gs(
                             trad_original,
                             trad_keywords,
                             st.session_state.dictionary_data,
@@ -677,6 +614,89 @@ with tab2:
                             page_number
                         )
                         st.success(f"資料已成功匯出！數據庫中現在有 {record_count} 條記錄。")
+            
+            # Show overwrite options if needed
+            if st.session_state.get('show_overwrite_options', False) and record_exists:
+                st.info("請選擇如何處理重複記錄：")
+                
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    if st.button("覆蓋現有記錄", key="overwrite_confirm"):
+                        try:
+                            sheet = init_google_sheets()
+                            
+                            # Find the row to update
+                            records = load_gs_data()
+                            record_index = None
+                            for i, record in enumerate(records):
+                                if (record["book_title"].strip().lower() == book_title.strip().lower() and 
+                                    record["article_title"].strip().lower() == article_title.strip().lower() and 
+                                    record["model_used"].strip().lower() == st.session_state.model_used.strip().lower()):
+                                    record_index = i + 2  # +2 because of header row and 0-indexing
+                                    break
+                            
+                            if record_index:
+                                # Convert to Traditional Chinese
+                                cc_s2t = OpenCC('s2t')
+                                trad_original = cc_s2t.convert(st.session_state.text_input_tab2)
+                                trad_keywords = cc_s2t.convert(st.session_state.words_input_tab2)
+                                
+                                # Update the record in Google Sheets
+                                updated_record = [
+                                    get_hong_kong_time().strftime("%Y-%m-%d %H:%M:%S"),
+                                    book_title.strip(),
+                                    article_title.strip(),
+                                    page_number.strip(),
+                                    trad_original,
+                                    trad_keywords,
+                                    st.session_state.dictionary_data,
+                                    st.session_state.model_used
+                                ]
+                                
+                                sheet.update(f"A{record_index}:H{record_index}", [updated_record])
+                                st.success(f"記錄已更新！數據庫中現在有 {len(records)} 條記錄。")
+                            else:
+                                st.error("找不到要更新的記錄。")
+                                
+                            st.session_state.show_overwrite_options = False
+                            st.session_state.show_new_name_inputs = False
+                            
+                        except Exception as e:
+                            st.error(f"更新記錄時出錯: {e}")
+                
+                with col2:
+                    if st.button("使用不同名稱保存", key="save_different"):
+                        st.session_state.show_new_name_inputs = True
+                
+                with col3:
+                    if st.button("取消操作", key="cancel_export"):
+                        st.session_state.show_overwrite_options = False
+                        st.session_state.show_new_name_inputs = False
+                        st.rerun()
+                
+                # Show new name inputs if requested
+                if st.session_state.get('show_new_name_inputs', False):
+                    new_book_title = st.text_input("新書名", value=book_title, key="new_book_title")
+                    new_article_title = st.text_input("新文章標題", value=article_title, key="new_article_title")
+                    
+                    if st.button("確認保存", key="save_with_new_name"):
+                        # Convert to Traditional Chinese before saving
+                        cc_s2t = OpenCC('s2t')  # Simplified to Traditional converter
+                        trad_original = cc_s2t.convert(st.session_state.text_input_tab2)
+                        trad_keywords = cc_s2t.convert(st.session_state.words_input_tab2)
+                        
+                        record_count = save_to_gs(
+                            trad_original,
+                            trad_keywords,
+                            st.session_state.dictionary_data,
+                            st.session_state.model_used,
+                            new_book_title,
+                            new_article_title,
+                            page_number
+                        )
+                        st.success(f"資料已成功匯出！數據庫中現在有 {record_count} 條記錄。")
+                        st.session_state.show_overwrite_options = False
+                        st.session_state.show_new_name_inputs = False
                         st.rerun()
 
 
@@ -840,24 +860,22 @@ with tab4:
     st.header("📚 複習")
     
     # Always show the download full database button at the top
-    if os.path.exists(st.session_state.csv_filename):
-        with open(st.session_state.csv_filename, "rb") as f:
-            csv_data = f.read()
-        
-        # Add BOM (Byte Order Mark) for Excel compatibility
-        bom = b'\xef\xbb\xbf'
-        csv_data_with_bom = bom + csv_data
+    # Always show the download full database button at the top
+    records = load_gs_data()
+    if records:
+        df = pd.DataFrame(records)
+        csv_data = df.to_csv(index=False, encoding='utf-8-sig')
         
         st.download_button(
             label="下載完整數據庫(CSV)",
-            data=csv_data_with_bom,
-            file_name=st.session_state.csv_filename,
+            data=csv_data,
+            file_name="chinese_learning_records.csv",
             mime="text/csv; charset=utf-8",
             key="download_full_db_revision"
         )
     
     # Load data from CSV
-    records = load_csv_data()
+    records = load_gs_data()
     
     if not records:
         st.info("尚未有任何匯出的課文資料。請先在「課文學習」標籤中匯出資料。")
