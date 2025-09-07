@@ -672,7 +672,7 @@ with tab2:
     st.markdown(
         """
         <div style='margin-bottom: 0;'>
-            <span style='font-size: 14px; font-weight: bold;'>字典解釋 - 關鍵詞語</span>
+            <span style='font-size: 14px; font-weight: bold;'>📘字典解釋 - 關鍵詞語</span>
             <span style='font-size: 12px;'> Enter Chinese words to look up (comma-separated):</span>
         </div>
         """,
@@ -1298,12 +1298,13 @@ with tool_tabs[1]:
                 Provide a clear and accurate translation. If the text contains idioms or cultural references, 
                 please provide both a literal translation and an explanation of the meaning in English 
                 
-                The answer should be provided in a table format with 3 columns:
+                The answer should be provided in a table with 3 columns:
                 Column 1: Heading = "中文", content = the original Chinese text
                 Column 2: Heading = "英文翻譯", content = the English translation
                 Column 3: Heading = "解釋", Explanation. If there are no idioms or cultural references, just provide the English translation, no need to mention these references not available.
                 
-                do not provide table in markdown format.
+                Important: Please use plain text format tables in your response.
+               
                 """
             else:
                 # English to Chinese translation prompt
@@ -1312,7 +1313,7 @@ with tool_tabs[1]:
                 \"{translation_input}\"
                 
                 Provide a clear and accurate translation. 
-                The answer should be provided in two simple tables, not markdown format.:
+                The answer should be provided in two tables:
                 
                 Table 1 should have a heading = "Table 1: Full translation", with 4 columns:
                 Column 1: Heading = "英文", content = the original English text (with typo corrected)
@@ -1330,8 +1331,8 @@ with tool_tabs[1]:
                 Column 5: Heading = "解釋", content = Beginner-friendly explanation in Traditional Chinese, provide the common usage and example sentences if applicable)  
                 Column 6: Heading = "例句", content = A beginner-friendly example sentence in traditional chinese based on content in column 5
                 
-                do not provide the table in markdown format.
-                """
+                Important: Please use plain text format tables in your response.
+                           """
             
             translation_output = call_ai_model(translation_prompt)
             
