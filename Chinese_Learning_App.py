@@ -12,6 +12,7 @@ import gspread
 from google.oauth2.service_account import Credentials
 from datetime import datetime, timezone, timedelta
 import pytz
+import json  # Add this import
 
 # Load environment variables
 load_dotenv()
@@ -131,6 +132,9 @@ def call_gemini(prompt):
 
 # DeepSeek API call helper
 def call_deepseek(prompt, model="deepseek-chat"):
+    if not deepseek_api_key:
+        return "❌ DeepSeek API key not configured. Please check your .env file."
+    
     client = OpenAI(api_key=deepseek_api_key, base_url="https://api.deepseek.com")
     
     try:
@@ -252,20 +256,32 @@ def init_google_sheets():
     scope = ["https://spreadsheets.google.com/feeds", 
              "https://www.googleapis.com/auth/drive"]
     
-    # You'll need to upload your credentials JSON to Streamlit secrets
-    creds_dict = st.secrets["google_credentials"]
-    creds = Credentials.from_service_account_info(creds_dict, scopes=scope)
-    client = gspread.authorize(creds)
+    # Get Google credentials from environment variable
+    google_credentials_json = os.getenv("GOOGLE_CREDENTIALS_JSON")
     
-    # Open your Google Sheet
-    sheet = client.open("Chinese Learning Records").sheet1
-    return sheet
-
+    if not google_credentials_json:
+        st.error("Google credentials not found. Please set GOOGLE_CREDENTIALS_JSON in your .env file.")
+        return None
+    
+    try:
+        # Parse the JSON string from environment variable
+        creds_dict = json.loads(google_credentials_json)
+        creds = Credentials.from_service_account_info(creds_dict, scopes=scope)
+        client = gspread.authorize(creds)
+        
+        # Open your Google Sheet
+        sheet = client.open("Chinese Learning Records").sheet1
+        return sheet
+    except Exception as e:
+        st.error(f"Error initializing Google Sheets: {e}")
+        return None
 
 # New functions for export and revision features
 def load_gs_data():
     try:
         sheet = init_google_sheets()
+        if sheet is None:
+            return []
         records = sheet.get_all_records()
         return records
     except Exception as e:
@@ -286,6 +302,9 @@ def check_record_exists(book_title, article_title, model_used):
 def save_to_gs(text_data, keywords, dictionary_data, model_used, book_title="", article_title="", page_number=""):
     try:
         sheet = init_google_sheets()
+        if sheet is None:
+            return 0
+            
         records = load_gs_data()
         
         # Create new record
@@ -613,7 +632,10 @@ with tab2:
                             article_title,
                             page_number
                         )
-                        st.success(f"資料已成功匯出！數據庫中現在有 {record_count} 條記錄。")
+                        if record_count > 0:
+                            st.success(f"資料已成功匯出！數據庫中現在有 {record_count} 條記錄。")
+                        else:
+                            st.error("匯出失敗，請檢查錯誤信息。")
             
             # Show overwrite options if needed
             if st.session_state.get('show_overwrite_options', False) and record_exists:
@@ -624,6 +646,9 @@ with tab2:
                     if st.button("覆蓋現有記錄", key="overwrite_confirm"):
                         try:
                             sheet = init_google_sheets()
+                            if sheet is None:
+                                st.error("無法連接到Google Sheets") 
+                                
                             
                             # Find the row to update
                             records = load_gs_data()
@@ -694,13 +719,13 @@ with tab2:
                             new_article_title,
                             page_number
                         )
-                        st.success(f"資料已成功匯出！數據庫中現在有 {record_count} 條記錄。")
+                        if record_count > 0:
+                            st.success(f"資料已成功匯出！數據庫中現在有 {record_count} 條記錄。")
                         st.session_state.show_overwrite_options = False
                         st.session_state.show_new_name_inputs = False
                         st.rerun()
 
 
-# Third Tab: Text-to-Speech
 # Third Tab: Text-to-Speech
 with tab3:
     # 📢 Text-to-Speech Section
@@ -815,11 +840,7 @@ with tab3:
     if st.session_state.cantonese_audio_data and st.session_state.mandarin_audio_data:
         # Create a container for the audio player with the original sticky style
         with st.container():
-            #st.markdown('<div class="sticky-audio-player">', unsafe_allow_html=True)
-            
             # Display audio information
-            #st.markdown('<div class="audio-player-header">當前音頻播放</div>', unsafe_allow_html=True)
-            
             # Display scrollable text
             st.markdown("**朗讀文本:**")
             st.markdown(f'<div class="scrollable-text">{st.session_state.audio_text}</div>', 
@@ -852,14 +873,11 @@ with tab3:
                 st.session_state.mandarin_audio_data = None
                 st.session_state.audio_text = None
                 st.rerun()
-            
-            st.markdown('</div>', unsafe_allow_html=True)
 
 # Fourth Tab: Revision
 with tab4:
     st.header("📚 複習")
     
-    # Always show the download full database button at the top
     # Always show the download full database button at the top
     records = load_gs_data()
     if records:
