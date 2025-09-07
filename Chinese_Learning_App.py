@@ -1297,10 +1297,13 @@ with tool_tabs[1]:
                 
                 Provide a clear and accurate translation. If the text contains idioms or cultural references, 
                 please provide both a literal translation and an explanation of the meaning in English 
+                
                 The answer should be provided in a table format with 3 columns:
                 Column 1: Heading = "中文", content = the original Chinese text
                 Column 2: Heading = "英文翻譯", content = the English translation
                 Column 3: Heading = "解釋", Explanation. If there are no idioms or cultural references, just provide the English translation, no need to mention these references not available.
+                
+                do not provide table in markdown format.
                 """
             else:
                 # English to Chinese translation prompt
@@ -1326,6 +1329,8 @@ with tool_tabs[1]:
                 Column 4: Heading = "拼音", content = Mandarin pinyin (with tone marks, e.g., mā, má, mǎ, mà)  
                 Column 5: Heading = "解釋", content = Beginner-friendly explanation in Traditional Chinese, provide the common usage and example sentences if applicable)  
                 Column 6: Heading = "例句", content = A beginner-friendly example sentence in traditional chinese based on content in column 5
+                
+                do not provide the table in markdown format.
                 """
             
             translation_output = call_ai_model(translation_prompt)
