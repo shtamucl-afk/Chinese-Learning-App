@@ -14,6 +14,7 @@ from datetime import datetime, timezone, timedelta
 import pytz
 import json  # Add this import
 
+
 # Load environment variables
 load_dotenv()
 gemini_api_key = os.getenv("GEMINI_API_KEY")
@@ -22,7 +23,7 @@ deepseek_api_key = os.getenv("DEEPSEEK_API_KEY")
 # Set full-width layout and reduce top padding
 st.set_page_config(layout="wide")
 
-# Custom CSS to reduce the top margin
+# Update your custom CSS section at the top of the script:
 st.markdown("""
     <style>
         .block-container {
@@ -43,6 +44,58 @@ st.markdown("""
         }
         .stTabs [aria-selected="true"] {
             background-color: #ffffff;
+        }
+        
+        /* Mobile responsiveness improvements */
+        @media (max-width: 768px) {
+            .stTabs [data-baseweb="tab"] {
+                height: auto;
+                min-height: 40px;
+                padding: 8px 12px;
+            }
+            .column-container {
+                flex-direction: column !important;
+            }
+            .stMarkdown h1, .stMarkdown h2, .stMarkdown h3 {
+                word-break: break-word;
+            }
+        }
+        
+        /* Print styles */
+        @media print {
+            .stApp {
+                height: auto !important;
+                overflow: visible !important;
+            }
+            .element-container {
+                break-inside: avoid;
+            }
+            .stMarkdown {
+                break-inside: avoid;
+            }
+        }
+        /* Make headers smaller */
+        h1 {
+            font-size: 20px !important;
+        }
+        h2 {
+            font-size: 18px !important;
+        }
+        h3 {
+            font-size: 16px !important;
+        }
+        
+        /* Target the specific class */
+        .chinese-text {
+            font-size: 26px !important;
+            line-height: 1.6 !important;
+        }
+        
+        /* Target highlighted text within the specific class */
+        .chinese-text mark {
+            font-size: 26px !important;
+            background-color: #ffffcc !important;
+            line-height: 1.6 !important;
         }
     </style>
 """, unsafe_allow_html=True)
@@ -165,7 +218,7 @@ def normalize_input(text):
     traditional = cc_s2t.convert(text)
     return traditional, simplified
 
-def highlight_words_dual(text_trad, text_simp, words_string):
+def highlight_words_dual(text_trad, text_simp, words_string, highlight_style="background-color: #ffffcc;"):
     cc_t2s = OpenCC('t2s')
     cc_s2t = OpenCC('s2t')
 
@@ -176,14 +229,18 @@ def highlight_words_dual(text_trad, text_simp, words_string):
     words_simp = [cc_t2s.convert(w) for w in words_raw]
 
     for trad, simp in zip(words_trad, words_simp):
-        text_trad = text_trad.replace(trad, f"<mark>{trad}</mark>")
-        text_simp = text_simp.replace(simp, f"<mark>{simp}</mark>")
+        # Use 16px font size (adjust as needed to change the size of the highlighted words)
+        text_trad = text_trad.replace(trad, f"<mark style='background-color: #ffffcc;'>{trad}</mark>")
+        text_simp = text_simp.replace(simp, f"<mark style='background-color: #ffffcc;'>{simp}</mark>")
     return text_trad, text_simp
 
 def is_traditional(text_input, text_trad, text_simp):
     trad_matches = sum(1 for a, b in zip(text_input, text_trad) if a == b)
     simp_matches = sum(1 for a, b in zip(text_input, text_simp) if a == b)
     return trad_matches >= simp_matches
+
+def update_tts_input_tab2():
+    st.session_state.tts_input_tab2 = st.session_state.tts_input_widget_tab2
 
 # Azure TTS functions (unchanged from your original code)
 def speak_text_azure(text, voice_id=None):
@@ -488,20 +545,45 @@ with tab1:
             st.markdown(user_corrected_text, unsafe_allow_html=True)
             st.caption("黃色標記：AI建議的修正 | 綠色標記：您修改的修正")
 
+
 # Second Tab: Dictionary and Study Tools
 with tab2:
     st.header("📘 課文")
     
+    # Initialize session state variables if they don't exist
+    if 'previous_text_input' not in st.session_state:
+        st.session_state.previous_text_input = ""
+    if 'previous_words_input' not in st.session_state:
+        st.session_state.previous_words_input = ""
+    
     def update_text_input_tab2():
-        st.session_state.text_input_tab2 = st.session_state.text_input_widget_tab2
+        current_value = st.session_state.text_input_widget_tab2
+        
+        # Check if text has actually changed
+        if current_value != st.session_state.previous_text_input:
+            # Update the text input
+            st.session_state.text_input_tab2 = current_value
+            st.session_state.previous_text_input = current_value
+            
+            # Clear dictionary data and export fields but keep words input
+            st.session_state.dictionary_data = None
+            # Clear export fields
+            if 'book_title' in st.session_state:
+                st.session_state.book_title = ""
+            if 'article_title' in st.session_state:
+                st.session_state.article_title = ""
+            if 'page_number' in st.session_state:
+                st.session_state.page_number = ""
     
     def update_words_input_tab2():
-        st.session_state.words_input_tab2 = st.session_state.words_input_widget_tab2
-        # Clear dictionary data when keywords change
-        st.session_state.dictionary_data = None
+        current_value = st.session_state.words_input_widget_tab2
         
-    def update_tts_input_tab2():
-        st.session_state.tts_input_tab2 = st.session_state.tts_input_widget_tab2
+        # Check if words have actually changed
+        if current_value != st.session_state.previous_words_input:
+            st.session_state.words_input_tab2 = current_value
+            st.session_state.previous_words_input = current_value
+            # Clear dictionary data when words change
+            st.session_state.dictionary_data = None
     
     text_input_tab2 = st.text_area(
         "Paste your Chinese text here (Traditional or Simplified):", 
@@ -510,29 +592,14 @@ with tab2:
         on_change=update_text_input_tab2
     )
     
-    if st.session_state.text_input_tab2:
-        text_trad_tab2, text_simp_tab2 = normalize_input(st.session_state.text_input_tab2)
-        Lookup_text_tab2 = text_trad_tab2
-    
-    if st.session_state.text_input_tab2:
-        if st.session_state.words_input_tab2:
-            highlighted_trad, highlighted_simp = highlight_words_dual(text_trad_tab2, text_simp_tab2, st.session_state.words_input_tab2)
-        else:
-            highlighted_trad = text_trad_tab2
-            highlighted_simp = text_simp_tab2
-
-        col1, col2 = st.columns([1, 1])
-        with col1:
-            st.subheader("Traditional Chinese")
-            st.markdown(highlighted_trad, unsafe_allow_html=True)
-        with col2:
-            st.subheader("Simplified Chinese")
-            st.markdown(highlighted_simp, unsafe_allow_html=True)
-    
+    # Move the "辨認關鍵詞語" button to the top
     if st.button("辨認關鍵詞語", key="identify_keywords_tab2"):
         if not st.session_state.text_input_tab2:
             st.warning("Please enter some text first.")
         else:
+            text_trad_tab2, text_simp_tab2 = normalize_input(st.session_state.text_input_tab2)
+            Lookup_text_tab2 = text_trad_tab2
+            
             prompt_words = f"""
             You are a Chinese native speaker, being a language tutor for a 12 year old student.
             Please identify the key complex vocabulary in the passage in "{Lookup_text_tab2}", 
@@ -543,20 +610,80 @@ with tab2:
                 response_words = call_ai_model(prompt_words)
                 st.header(f"{st.session_state.selected_model} 辨認關鍵詞:")
                 st.write(response_words)
-                
-                st.session_state.words_input_tab2 = response_words
-                # Also update the widget value to keep them in sync
-                st.session_state.words_input_widget_tab2 = response_words
-                
+                                
             except Exception as e:
                 st.error(f"❌ An unexpected error occurred: {e}")
     
-    st.header("📘 字典解釋 - 關鍵詞語")
+    if st.session_state.text_input_tab2:
+        text_trad_tab2, text_simp_tab2 = normalize_input(st.session_state.text_input_tab2)
+        Lookup_text_tab2 = text_trad_tab2
+        
+        # Apply highlighting if words are available
+        if st.session_state.words_input_tab2:
+            highlighted_trad, highlighted_simp = highlight_words_dual(text_trad_tab2, text_simp_tab2, st.session_state.words_input_tab2,"")
+        else:
+            highlighted_trad = text_trad_tab2
+            highlighted_simp = text_simp_tab2
+
+        # Add CSS for scrollable text area
+        st.markdown("""
+        <style>
+        .scrollable-text {
+            max-height: 400px;
+            overflow-y: auto;
+            padding: 10px;
+            border: 1px solid #e6e6e6;
+            border-radius: 4px;
+            background-color: #f9f9f9;
+            margin-bottom: 15px;
+        }
+        </style>
+        """, unsafe_allow_html=True)
+
+        # Replace the column layout with tabs
+        trad_tab, simp_tab = st.tabs(["繁體中文", "簡體中文"])
+        
+        with trad_tab:
+            # Split the text into paragraphs and build the full HTML content
+            paragraphs = highlighted_trad.split('\n\n')
+            html_content = '<div class="scrollable-text">'
+            for paragraph in paragraphs:
+                if paragraph.strip():  # Only include non-empty paragraphs
+                    html_content += f'<div class="chinese-text">{paragraph}</div><br>'
+            html_content += '</div>'
+            
+            # Display the entire content in a single markdown call
+            st.markdown(html_content, unsafe_allow_html=True)
+
+        with simp_tab:            
+            # Split the text into paragraphs and build the full HTML content
+            paragraphs = highlighted_simp.split('\n\n')
+            html_content = '<div class="scrollable-text">'
+            for paragraph in paragraphs:
+                if paragraph.strip():  # Only include non-empty paragraphs
+                    html_content += f'<div class="chinese-text">{paragraph}</div><br>'
+            html_content += '</div>'
+            
+            # Display the entire content in a single markdown call
+            st.markdown(html_content, unsafe_allow_html=True)
+    
+    
+    # Dictionary Section
+    st.markdown(
+        """
+        <div style='margin-bottom: 0;'>
+            <span style='font-size: 14px; font-weight: bold;'>字典解釋 - 關鍵詞語</span>
+            <span style='font-size: 12px;'> Enter Chinese words to look up (comma-separated):</span>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
     words_input_tab2 = st.text_area(
-        "Enter Chinese words to look up (comma-separated):", 
+        "",  # Empty label
         value=st.session_state.words_input_tab2,
         key="words_input_widget_tab2",
-        on_change=update_words_input_tab2  # This now clears dictionary data when changed
+        on_change=update_words_input_tab2,
+        label_visibility="collapsed"  # This ensures no extra space from the hidden label
     )
 
     if st.button("字典", key="dictionary_tab2"):
@@ -580,14 +707,12 @@ with tab2:
                 response_dict = call_ai_model(prompt_dict)
                 st.session_state.dictionary_data = response_dict
                 st.session_state.model_used = st.session_state.selected_model
-                st.subheader(f"{st.session_state.selected_model} Dictionary:")
-                st.write(response_dict)
             except Exception as e:
                 st.error(f"❌ An unexpected error occurred: {e}")
     
     # Display dictionary response if it exists
     if st.session_state.dictionary_data:
-        st.subheader(f"{st.session_state.selected_model} Dictionary(to be exported):")
+        st.subheader(f"{st.session_state.model_used} Dictionary:")
         st.markdown(st.session_state.dictionary_data)
         
         # Export section
@@ -598,12 +723,13 @@ with tab2:
         with export_container:
             col1, col2, col3 = st.columns(3)
             with col1:
-                book_title = st.text_input("書名", key="book_title")
+                book_title = st.text_input("書名", key="book_title", value=st.session_state.get('book_title', ''))
             with col2:
-                article_title = st.text_input("文章標題", key="article_title")
+                article_title = st.text_input("文章標題", key="article_title", value=st.session_state.get('article_title', ''))
             with col3:
-                page_number = st.text_input("頁碼", key="page_number")
+                page_number = st.text_input("頁碼", key="page_number", value=st.session_state.get('page_number', ''))
             
+         
             # Check if record already exists
             record_exists = False
             if book_title and article_title:
@@ -874,25 +1000,12 @@ with tab3:
                 st.session_state.audio_text = None
                 st.rerun()
 
+
 # Fourth Tab: Revision
 with tab4:
     st.header("📚 複習")
     
-    # Always show the download full database button at the top
-    records = load_gs_data()
-    if records:
-        df = pd.DataFrame(records)
-        csv_data = df.to_csv(index=False, encoding='utf-8-sig')
-        
-        st.download_button(
-            label="下載完整數據庫(CSV)",
-            data=csv_data,
-            file_name="chinese_learning_records.csv",
-            mime="text/csv; charset=utf-8",
-            key="download_full_db_revision"
-        )
-    
-    # Load data from CSV
+    # load data from Google Sheets
     records = load_gs_data()
     
     if not records:
@@ -956,14 +1069,19 @@ with tab4:
             st.session_state.filter_model_used = "所有"
         
         # Create filter UI
-        col1, col2, col3, col4 = st.columns([4,8,1.5,2])
+        col1, col2, col3, col4 = st.columns([1, 1, 1, 1])
         
         with col1:
-            # Book filter
+            # Book filter - with safe index calculation
+            book_options = ["所有"] + book_titles
+            book_index = 0  # Default to "所有"
+            if st.session_state.filter_book_title in book_titles:
+                book_index = book_titles.index(st.session_state.filter_book_title) + 1
+            
             new_book_filter = st.selectbox(
                 "書名", 
-                options=["所有"] + book_titles,
-                index=0 if st.session_state.filter_book_title == "所有" else book_titles.index(st.session_state.filter_book_title) + 1,
+                options=book_options,
+                index=book_index,
                 key="book_filter"
             )
             
@@ -973,14 +1091,18 @@ with tab4:
                 st.session_state.filter_article_title = "所有"
                 st.session_state.filter_page_number = "所有"
                 st.session_state.filter_model_used = "所有"
-                st.rerun()
         
         with col2:
-            # Article filter
+            # Article filter - with safe index calculation
+            article_options = ["所有"] + available_articles
+            article_index = 0  # Default to "所有"
+            if st.session_state.filter_article_title in available_articles:
+                article_index = available_articles.index(st.session_state.filter_article_title) + 1
+            
             new_article_filter = st.selectbox(
                 "文章標題", 
-                options=["所有"] + available_articles,
-                index=0 if st.session_state.filter_article_title == "所有" else available_articles.index(st.session_state.filter_article_title) + 1,
+                options=article_options,
+                index=article_index,
                 key="article_filter"
             )
             
@@ -989,14 +1111,18 @@ with tab4:
                 st.session_state.filter_article_title = new_article_filter
                 st.session_state.filter_page_number = "所有"
                 st.session_state.filter_model_used = "所有"
-                st.rerun()
         
         with col3:
-            # Page filter
+            # Page filter - with safe index calculation
+            page_options = ["所有"] + available_pages
+            page_index = 0  # Default to "所有"
+            if st.session_state.filter_page_number in available_pages:
+                page_index = available_pages.index(st.session_state.filter_page_number) + 1
+            
             new_page_filter = st.selectbox(
                 "頁碼", 
-                options=["所有"] + available_pages,
-                index=0 if st.session_state.filter_page_number == "所有" else available_pages.index(st.session_state.filter_page_number) + 1,
+                options=page_options,
+                index=page_index,
                 key="page_filter"
             )
             
@@ -1004,16 +1130,23 @@ with tab4:
             if new_page_filter != st.session_state.filter_page_number:
                 st.session_state.filter_page_number = new_page_filter
                 st.session_state.filter_model_used = "所有"
-                st.rerun()
         
         with col4:
-            # Model filter
+            # Model filter - with safe index calculation
+            model_options = ["所有"] + available_models
+            model_index = 0  # Default to "所有"
+            if st.session_state.filter_model_used in available_models:
+                model_index = available_models.index(st.session_state.filter_model_used) + 1
+            
             st.session_state.filter_model_used = st.selectbox(
                 "AI模型", 
-                options=["所有"] + available_models,
-                index=0 if st.session_state.filter_model_used == "所有" else available_models.index(st.session_state.filter_model_used) + 1,
+                options=model_options,
+                index=model_index,
                 key="model_filter"
             )
+        
+                
+        st.markdown('</div>', unsafe_allow_html=True)
         
         # Filter records based on selections
         filtered_records = records
@@ -1044,16 +1177,15 @@ with tab4:
                 selected_index = export_options.index(selected_export)
                 selected_data = filtered_records[selected_index]
                 
-                # Display the text information
+                # Display the text information in a more mobile-friendly way
                 st.subheader("課文資訊")
-                col1, col2, col3, col4 = st.columns(4)
-                with col1:
+                
+                info_cols = st.columns(2)
+                with info_cols[0]:
                     st.info(f"**書名:** {selected_data['book_title']}")
-                with col2:
                     st.info(f"**文章標題:** {selected_data['article_title']}")
-                with col3:
+                with info_cols[1]:
                     st.info(f"**頁碼:** {selected_data['page_number']}")
-                with col4:
                     st.info(f"**AI模型:** {selected_data['model_used']}")
                 
                 # Display keywords
@@ -1062,15 +1194,17 @@ with tab4:
                 
                 # Display the original text with highlighted keywords
                 st.subheader("課文內容（關鍵詞高亮顯示）")
-                text_trad, text_simp = normalize_input(selected_data['original_text'])
-                highlighted_trad, highlighted_simp = highlight_words_dual(text_trad, text_simp, selected_data['keywords'])
                 
-                col1, col2 = st.columns([1, 1])
-                with col1:
-                    st.markdown("**繁體中文**")
+                text_trad, text_simp = normalize_input(selected_data['original_text'])
+                highlighted_trad, highlighted_simp = highlight_words_dual(text_trad, text_simp, selected_data['keywords'],"#ffffcc")
+                
+                # Use tabs for traditional/simplified instead of columns on mobile
+                trad_tab, simp_tab = st.tabs(["繁體中文", "簡體中文"])
+                
+                with trad_tab:
                     st.markdown(highlighted_trad, unsafe_allow_html=True)
-                with col2:
-                    st.markdown("**簡體中文**")
+                
+                with simp_tab:
                     st.markdown(highlighted_simp, unsafe_allow_html=True)
                 
                 # Display dictionary explanation
@@ -1078,36 +1212,39 @@ with tab4:
                 st.markdown(f"*由 {selected_data['model_used']} 生成*")
                 st.markdown(selected_data['dictionary_data'])
                 
-                # Only show the PDF note, remove the CSV download button
+                # Print instructions
                 st.info("如果你需要下載這個工作紙,您可以將此頁面打印為PDF。")
-
+                
 # Fifth Tab: Helpful Tools
 with tab5:
     st.header("🛠️ 工具")
     
     # Create subtabs for the different tools
-    tool_tabs = st.tabs(["繁簡轉換", "英文翻譯", "雙語發音"])
+    tool_tabs = st.tabs(["繁簡轉換+字典", "雙向翻譯", "雙語發音"])
     
     # First Tool: Traditional-Simplified Conversion with Pinyin
     with tool_tabs[0]:
-        st.subheader("繁簡轉換與拼音")
+        st.subheader("繁簡轉換(拼音)+字典解釋")
         
         # Input for conversion
         conversion_input = st.text_area(
             "輸入中文文本（繁體或簡體）:",
             height=100,
             key="conversion_input",
-            help="輸入要轉換的文本，系統會顯示繁體、簡體和拼音版本"
+            help="輸入要轉換的文本，系統會顯示繁體、簡體、拼音和字典解釋"
         )
         
         if st.button("轉換", key="convert_button"):
             if conversion_input:
                 # Use AI to generate the conversion table with tone-marked pinyin
                 conversion_prompt = f"""
-                Please convert the following Chinese text and provide the results in a Markdown table format with three columns:
-                Column 1: 繁體
-                Column 2: 簡體  
-                Column 3: 拼音
+                Please convert the following Chinese text and provide the results in a table format with 4 columns:
+                
+                Column 1: Heading = "繁體", content = the original character in traditional chinese
+                Column 2: Heading = "簡體", content = convert the column 1 characters into simplified chinese
+                Column 3: Heading = "拼音", content = Mandarin pinyin  
+                Column 4: Heading = "解釋", content = A beginner-friendly, simple definition  
+                Column 5 & 6: Heading = "例句", content = An example sentence, show in both traditional (column 5) and simplified chinese
                 
                 Text to convert: \"{conversion_input}\"
                 
@@ -1124,36 +1261,84 @@ with tab5:
                 
                
     # Second Tool: English Translation
-    with tool_tabs[1]:
-        st.subheader("英文翻譯")
-        
-        # Input for translation
-        translation_input = st.text_area(
-            "輸入中文文本（繁體或簡體）:",
-            height=100,
-            key="translation_input",
-            help="輸入要翻譯成英文的中文文本"
-        )
-        
-        if st.button("翻譯", key="translate_button"):
-            if translation_input:
-                # Get English translation using AI
+with tool_tabs[1]:
+    st.subheader("雙向翻譯")
+    
+    # Add translation direction selector
+    translation_direction = st.radio(
+        "選擇翻譯方向:",
+        ["中文 to English", "English to 中文"],
+        horizontal=True,
+        key="translation_direction"
+    )
+    
+    # Input for translation
+    if translation_direction == "中文 to English":
+        input_label = "輸入中文文本（繁體或簡體）:"
+        help_text = "輸入要翻譯成英文的中文文本"
+    else:
+        input_label = "輸入英文文本:"
+        help_text = "輸入要翻譯成中文的英文文本"
+    
+    translation_input = st.text_area(
+        input_label,
+        height=100,
+        key="translation_input",
+        help=help_text
+    )
+    
+    if st.button("翻譯", key="translate_button"):
+        if translation_input:
+            if translation_direction == "中文 to English":
+                # Chinese to English translation prompt
                 translation_prompt = f"""
                 Please translate the following Chinese text to English:
                 \"{translation_input}\"
                 
                 Provide a clear and accurate translation. If the text contains idioms or cultural references, 
-                please provide both a literal translation and an explanation of the meaning in English.
+                please provide both a literal translation and an explanation of the meaning in English 
+                The answer should be provided in a table format with 3 columns:
+                Column 1: Heading = "中文", content = the original Chinese text
+                Column 2: Heading = "英文翻譯", content = the English translation
+                Column 3: Heading = "解釋", Explanation. If there are no idioms or cultural references, just provide the English translation, no need to mention these references not available.
                 """
-                
-                translation_output = call_ai_model(translation_prompt)
-                
-                # Display translation in a scrollable container
-                st.markdown("### 英文翻譯")
-                st.markdown(f'<div style="border: 1px solid #e6e6e6; padding: 10px; border-radius: 5px; max-height: 200px; overflow-y: auto; white-space: pre-wrap;">{translation_output}</div>', 
-                           unsafe_allow_html=True)
             else:
-                st.warning("請輸入要翻譯的文本")
+                # English to Chinese translation prompt
+                translation_prompt = f"""
+                Please translate the following English text to Chinese (Traditional and Simplified):
+                \"{translation_input}\"
+                
+                Provide a clear and accurate translation. 
+                The answer should be provided in two simple tables, not markdown format.:
+                
+                Table 1 should have a heading = "Table 1: Full translation", with 4 columns:
+                Column 1: Heading = "英文", content = the original English text (with typo corrected)
+                Column 2: Heading = "繁體", content = the Traditional Chinese translation
+                Column 3: Heading = "簡體", content = the Simplified Chinese translation
+                Column 4: Heading = "拼音", content = Mandarin pinyin (with tone marks, e.g., mā, má, mǎ, mà)
+                
+                Keet the original input passage format, do not split.
+
+                Table 2 should have a heading = "Table 2: Breakdown of Translation", it provides the explanation breaking down how each of the original English phrases map to the Chinese translation with 5 columns:
+                Column 1: Heading = "英文", content = English (broken down phrases)
+                Column 2: Heading = "繁體", content = Traditional Chinese (corresponding suggested phrases)
+                Column 3: Heading = "簡體", content = Simplified Chinese (corresponding suggested phrases)
+                Column 4: Heading = "拼音", content = Mandarin pinyin (with tone marks, e.g., mā, má, mǎ, mà)  
+                Column 5: Heading = "解釋", content = Beginner-friendly explanation in Traditional Chinese, provide the common usage and example sentences if applicable)  
+                Column 6: Heading = "例句", content = A beginner-friendly example sentence in traditional chinese based on content in column 5
+                """
+            
+            translation_output = call_ai_model(translation_prompt)
+            
+            # Display translation in a scrollable container
+            if translation_direction == "中文 to English":
+                st.markdown("### 英文翻譯結果")
+            else:
+                st.markdown("### 中文翻譯結果")
+                
+            st.markdown(translation_output)
+        else:
+            st.warning("請輸入要翻譯的文本")
     
     # Third Tool: Dual Language TTS
     with tool_tabs[2]:
