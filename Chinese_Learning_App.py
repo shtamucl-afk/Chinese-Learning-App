@@ -370,7 +370,7 @@ def save_to_gs(text_data, keywords, dictionary_data, model_used, book_title="", 
             "book_title": book_title.strip(),
             "article_title": article_title.strip(),
             "page_number": page_number.strip(),
-            "original_text": text_data,
+            "original_text_trad": text_data,
             "keywords": keywords,
             "dictionary_data": dictionary_data,
             "model_used": model_used.strip()
@@ -1195,7 +1195,7 @@ with tab4:
                 # Display the original text with highlighted keywords
                 st.subheader("課文內容（關鍵詞高亮顯示）")
                 
-                text_trad, text_simp = normalize_input(selected_data['original_text'])
+                text_trad, text_simp = normalize_input(selected_data['original_text_trad'])
                 highlighted_trad, highlighted_simp = highlight_words_dual(text_trad, text_simp, selected_data['keywords'],"#ffffcc")
                 
                 # Use tabs for traditional/simplified instead of columns on mobile
