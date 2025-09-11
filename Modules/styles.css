@@ -1,0 +1,76 @@
+/* Reduce top padding of the page. .block-container = main container wrapper*/
+.block-container {
+    padding-top: 3rem;
+    padding-bottom: 0rem;
+    margin-bottom: 0px;
+    margin-top: 16px;
+}
+
+/* the text inside [] is the "attribute selector", this one refers to the container that holds the list of tabs */               
+.stTabs [data-baseweb="tab-list"] {
+    gap: 8px;
+}
+    
+/* Individual tab styling */
+/* border-radius: top-left, top-right, bottom-right, bottom-left 4px = rounded, 0px = square*/
+.stTabs [data-baseweb="tab"] {
+    height: 40px;
+    white-space: pre-wrap;
+    background-color: #f0f2f6;
+    border-radius: 4px 4px 0px 0px;
+    gap: 0px;
+    padding-top: 4px;
+    padding-bottom: 4px;
+    padding-left: 16px;
+    padding-right: 16px;
+    font-size: 18px;   
+}
+.stTabs [aria-selected="true"] {
+    background-color: #ffffff;
+}
+
+    /* Mobile responsiveness improvements */
+@media (max-width: 768px) {
+    .stTabs [data-baseweb="tab"] {
+        height: auto;
+        min-height: 40px;
+        padding: 8px 12px;
+    }
+    .column-container {
+        flex-direction: column !important;
+    }
+    .stMarkdown h1, .stMarkdown h2, .stMarkdown h3 {
+        word-break: break-word;
+    }
+}
+/* Make headers smaller, <h1> = the largest heading, <h2> = the second largest heading, <h3> = the smallest heading, standard html elements */
+/* For Streamlit, it corresponds to st.header, st.subheader, st.title */
+h1 {
+    font-size: 30px !important;
+}
+h2 {
+    font-size: 18px !important;
+}
+h3 {
+    font-size: 16px !important;
+}
+
+/* Target the specific class */
+.chinese-text-teaching {
+    font-size: 26px !important;
+    line-height: 1.6 !important;
+}
+
+/* Remove gap before the words textarea that follows our unique heading */
+.dict-keywords + div[data-testid="stTextArea"] { margin-top: 0 !important; }
+
+/* Scrollable text containers */
+.scrollable-text {
+    height: 400px;
+    overflow-y: auto;
+    border: 1px solid #e0e0e0;
+    border-radius: 5px;
+    padding: 10px;
+    margin-bottom: 15px;
+    background-color: #f9f9f9;
+}
