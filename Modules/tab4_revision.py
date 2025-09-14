@@ -6,6 +6,10 @@ from Modules.text_utils import normalize_input_cached, highlight_words_dual
 
 def render():
     st.header("📚 複習")
+
+    #if 'copy_success' not in st.session_state:
+        #st.session_state.copy_success = False
+
     records = load_gs_data_cached()
     if not records:
         st.info("尚未有任何匯出的課文資料。請先在「課文學習」標籤中匯出資料。")
@@ -110,6 +114,24 @@ def render():
     idx = options.index(selected)
     data = filtered_records[idx]
 
+    if st.button("複製到<<課文學習>>和<<語音朗讀>>", key="copy_to_other_tabs"):
+    # Save data to temporary files for other tabs
+        save_to_temp_file(data['original_text_trad'], "tab2_text.txt")
+        save_to_temp_file(data['keywords'], "tab2_words.txt")
+        save_to_temp_file(data['original_text_trad'], "tts_input.txt")
+        
+        # Set success state
+        #st.session_state.copy_success = True
+        
+        # Force a rerun to ensure highlighting works
+        st.session_state.force_highlight = True
+        st.success("複製成功！")
+        
+        # Set active tab to Tab 2
+        st.session_state.active_tab = "課文學習"
+        st.rerun()
+             
+
     st.subheader("課文資訊")
     c1, c2 = st.columns(2)
     with c1:
@@ -119,6 +141,8 @@ def render():
         st.info(f"**頁碼:** {data['page_number']}")
         st.info(f"**AI模型:** {data['model_used']}")
 
+    
+    
     st.subheader("關鍵詞語")
     st.write(data['keywords'])
 
