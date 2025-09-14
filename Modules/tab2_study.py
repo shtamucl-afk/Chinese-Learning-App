@@ -19,7 +19,14 @@ from Modules.sheets import check_record_exists, save_to_gs
 def render():
     current_tab = "課文學習"
     st.header("📘 課文")
-    
+
+    if st.session_state.get('force_highlight', False):
+        st.session_state.force_highlight = False
+        # This ensures the highlighting will be processed
+        st.session_state.words_input_tab2 = load_from_temp_file("tab2_words.txt", "")
+        st.rerun()
+
+ 
     # Use file-based storage for text input
     text_input_tab2 = st.text_area(
         "Paste your Chinese text here (Traditional or Simplified):", 
@@ -39,27 +46,7 @@ def render():
         Lookup_text_tab2 = text_trad_tab2
     
     if text_input_tab2:
-        # Add CSS for scrollable text area
-        # st.markdown("""
-        # <style>
-        # .scrollable-text {
-        #     max-height: 400px;
-        #     overflow-y: auto;
-        #     padding: 10px;
-        #     border: 1px solid #e6e6e6;
-        #     border-radius: 4px;
-        #     background-color: #f9f9f9;
-        #     margin-bottom: 15px;
-        #     white-space: pre-wrap;
-        # }
-        # .chinese-text-teaching {
-        #     font-size: 18px;
-        #     line-height: 1.6;
-        #     margin-bottom: 10px;
-        # }
-        # </style>
-        # """, unsafe_allow_html=True)
-
+        
         # Replace the column layout with tabs
         trad_tab, simp_tab = st.tabs(["繁體中文", "簡體中文"])
         
@@ -163,7 +150,8 @@ def render():
             value=load_from_temp_file("tab2_words.txt", ""),
             key="words_input_tab2",
             height=150,
-            label_visibility="collapsed"
+            label_visibility="collapsed",
+            on_change=lambda: save_to_temp_file(st.session_state.words_input_tab2, "tab2_words.txt")
         )
             
         # Save to temp file when words change
