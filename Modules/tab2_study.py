@@ -144,15 +144,17 @@ def render():
         unsafe_allow_html=True
         )
 
-        # Use file-based storage for words input
         words_input_tab2 = st.text_area(
             "",
-            value=load_from_temp_file("tab2_words.txt", ""),
-            key="words_input_tab2",
+            key="words_input_tab2",  # Remove default value
             height=150,
             label_visibility="collapsed",
             on_change=lambda: save_to_temp_file(st.session_state.words_input_tab2, "tab2_words.txt")
         )
+
+        # Initialize session state if not exists
+        if "words_input_tab2" not in st.session_state:
+            st.session_state.words_input_tab2 = load_from_temp_file("tab2_words.txt", "")
             
         # Save to temp file when words change
         if words_input_tab2 != load_from_temp_file("tab2_words.txt", ""):
