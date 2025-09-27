@@ -9,7 +9,7 @@ def _init_gemini_model():
     if not api_key:
         return None
     genai.configure(api_key=api_key)
-    return genai.GenerativeModel("gemini-1.5-flash")
+    return genai.GenerativeModel("gemini-2.5-flash")
 
 def call_gemini(prompt: str) -> str:
     model = _init_gemini_model()
