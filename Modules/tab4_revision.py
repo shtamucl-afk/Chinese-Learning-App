@@ -7,8 +7,8 @@ from Modules.text_utils import normalize_input_cached, highlight_words_dual
 def render():
     st.header("📚 複習")
 
-    #if 'copy_success' not in st.session_state:
-        #st.session_state.copy_success = False
+    if 'copy_success' not in st.session_state:
+        st.session_state.copy_success = False
 
     records = load_gs_data_cached()
     if not records:
@@ -121,7 +121,7 @@ def render():
         save_to_temp_file(data['original_text_trad'], "tts_input.txt")
         
         # Set success state
-        #st.session_state.copy_success = True
+        st.session_state.copy_success = True
         
         # Force a rerun to ensure highlighting works
         st.session_state.force_highlight = True
